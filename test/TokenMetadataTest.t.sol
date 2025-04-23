@@ -28,7 +28,7 @@ contract TokenTest is NFTBaseTest {
 
         // Reveal collection
         string memory baseUriValue = "ipfs://example/";
-        vm.warp(0); // Set time to 0 to ensure we're before revealTime
+        vm.warp(1 days);
         nft.revealTokenURI(baseUriValue);
 
         string memory expectedURI = string(abi.encodePacked(baseUriValue, "0"));
@@ -45,7 +45,7 @@ contract TokenTest is NFTBaseTest {
 
     function test_baseURI_returnsCorrectValue() public {
         string memory baseUriValue = "ipfs://example/";
-        vm.warp(0);
+        vm.warp(1 days);
         nft.revealTokenURI(baseUriValue);
 
         assertEq(nft.baseURI(), baseUriValue);
@@ -83,7 +83,7 @@ contract TokenTest is NFTBaseTest {
 
         // Reveal collection
         string memory baseUriValue = "ipfs://example/";
-        vm.warp(0); // Set time to 0 to ensure we're before revealTime
+        vm.warp(1 days);
         nft.revealTokenURI(baseUriValue);
 
         // Now we should be able to get the URI

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: SEE LICENSE IN LICENSE
 pragma solidity 0.8.28;
 
+import {Test, console} from "forge-std/Test.sol";
+
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {IERC721} from "./interface/IERC721.sol";
 import {IERC165} from "./interface/IERC165.sol";
@@ -161,6 +163,14 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
         _;
     }
 
+    // @notice Ensures token exists
+    modifier tokenExists(uint256 tokenId) {
+        if (idToOwner[tokenId] == address(0)) {
+            revert InvalidToken(tokenId);
+        }
+        _;
+    }
+
     // =========================================================================
     // Constructor
     // =========================================================================
@@ -226,21 +236,21 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @notice Allows withdrawal of collected ETH after grace period
     /// @dev Transfers all collected ETH to the caller
     function withdrawCollectedEth() external onlyOwner {
-        if (block.timestamp < endGracePeriod) {
+        if (block.timestamp < endGracePeriod || endGracePeriod == 0) {
             revert GracePeriodNotOver();
         }
         uint256 amountToWithdraw = weiCollected;
         weiCollected = 0;
         endGracePeriod = 0;
-       (bool success, ) = payable(_owner).call{value: amountToWithdraw}("");
-       require(success, "Transfer failed");
+        (bool success,) = payable(_owner).call{value: amountToWithdraw}("");
+        require(success, "Transfer failed");
     }
 
     /// @notice Reveals the token URI if it matches the stored hash
     /// @param value The baseURI to set
     /// @dev Only the contract owner can call this function
     function revealTokenURI(string memory value) external onlyOwner {
-        if (revealTime < block.timestamp) {
+        if (block.timestamp < revealTime) {
             revert NotRevealed();
         }
 
@@ -300,11 +310,11 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @param tokenId ID of the NFT being transferred
     function transferFrom(address from, address to, uint256 tokenId) external payable zeroAddressCheck(to) {
         address currentNFTOwner = idToOwner[tokenId];
-        if (from != currentNFTOwner) {
-            revert NotAuthorized(from);
-        }
         if (idToOwner[tokenId] == address(0)) {
             revert InvalidToken(tokenId);
+        }
+        if (from != currentNFTOwner) {
+            revert NotAuthorized(from);
         }
 
         bool isAllowedOperator = msg.sender == currentNFTOwner || msg.sender == approvedAddress[tokenId]
@@ -433,7 +443,14 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @notice Gets the URI for a specific token
     /// @param _tokenId The ID of the token
     /// @return The complete URI for the token
-    function tokenURI(uint256 _tokenId) external view override isRevealed returns (string memory) {
+    function tokenURI(uint256 _tokenId)
+        external
+        view
+        override
+        isRevealed
+        tokenExists(_tokenId)
+        returns (string memory)
+    {
         return string(abi.encodePacked(_baseURI, _tokenId.toString()));
     }
 
@@ -447,7 +464,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @notice Checks if the collection has been revealed
     /// @return True if the collection is revealed, false otherwise
     function isCollectionRevealed() public view returns (bool) {
-        return revealTime >= block.timestamp && _baseURIHash == keccak256(bytes(_baseURI));
+        return block.timestamp >= revealTime && _baseURIHash == keccak256(bytes(_baseURI));
     }
 
     /// @notice Gets the owner of a specific NFT
