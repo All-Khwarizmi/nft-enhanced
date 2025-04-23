@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Test} from "forge-std/Test.sol";
 import {NFT} from "../src/NFT.sol";
 import {NFTBaseTest} from "./NFTBaseTest.t.sol";
 
-contract NFTTest is Test, NFTBaseTest {
+contract NFTTest is NFTBaseTest {
     receive() external payable {}
 
     function test_initiateWithdrawalPeriodShouldRevert_whenNotOwner() public {
@@ -53,6 +52,4 @@ contract NFTTest is Test, NFTBaseTest {
 
         assertEq(balanceAfter - balanceBefore, 0.01 ether);
     }
-
-    
 }
