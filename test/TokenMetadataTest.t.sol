@@ -31,7 +31,7 @@ contract TokenTest is NFTBaseTest {
         vm.warp(1 days);
         nft.revealTokenURI(baseUriValue);
 
-        string memory expectedURI = string(abi.encodePacked(baseUriValue, "0"));
+        string memory expectedURI = string(string.concat(baseUriValue, "0.json"));
         assertEq(nft.tokenURI(0), expectedURI);
     }
 
@@ -87,7 +87,7 @@ contract TokenTest is NFTBaseTest {
         nft.revealTokenURI(baseUriValue);
 
         // Now we should be able to get the URI
-        string memory expectedURI = string(abi.encodePacked(baseUriValue, "0"));
+        string memory expectedURI = string(string.concat(baseUriValue, "0.json"));
         assertEq(nft.tokenURI(0), expectedURI);
     }
 

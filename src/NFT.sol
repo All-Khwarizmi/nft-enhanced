@@ -33,37 +33,19 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     // =========================================================================
     // Errors
     // =========================================================================
-    /// @notice Thrown when an invalid token ID is provided
     error InvalidToken(uint256 tokenId);
-
-    /// @notice Thrown when a zero address is provided where it's not allowed
     error ZeroAddress();
-
-    /// @notice Thrown when an unauthorized account attempts an operation
     error NotAuthorized(address account);
-
-    /// @notice Thrown when attempting to mint beyond the maximum supply
     error NotEnoughSupply();
-
-    /// @notice Thrown when a value doesn't match the expected value
     error NotExpectedValue();
-
-    /// @notice Thrown when a contract receiver doesn't implement onERC721Received
     error NotOnReceivedImplementer();
-
-    /// @notice Thrown when attempting to access URIs before they're revealed
     error NotRevealed();
-
-    /// @notice Thrown when a user doesn't have enough ETH balance
     error NotEnoughEth();
-
-    /// @notice Thrown when a user tries to withdraw collected ETH before grace period
     error GracePeriodNotOver();
 
     // =========================================================================
     // Events
     // =========================================================================
-    /// @notice Emitted when a new NFT is minted
     event Mint(address indexed owner, uint256 tokenId);
 
     // =========================================================================
@@ -71,8 +53,6 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     // =========================================================================
     /// @notice Minting fee in ETH
     uint256 public constant FEE = 0.01 ether;
-
-    /// @notice Maximum supply of NFTs
     uint256 public immutable MAX_SUPPLY;
 
     /// @notice Default time before revealing token metadata
@@ -86,30 +66,19 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     // =========================================================================
 
     // Collection metadata
-    /// @notice Name of the NFT collection
     string private _name;
-
-    /// @notice Symbol of the NFT collection
     string private _symbol;
-
-    /// @notice Base URI for token metadata
     string private _baseURI;
-
-    /// @notice Hash of the baseURI for verification
     bytes32 private _baseURIHash;
 
     /// @notice Time after which the collection will be revealed
     uint256 private revealTime;
 
     // Supply tracking
-    /// @notice Current total supply of minted NFTs
     uint256 public totalSupply;
 
     // Contract ownership
-    /// @notice Current owner of the contract
     address private _owner;
-
-    /// @notice Address pending to become the new owner
     address private pendingOwner;
 
     // Financial state
@@ -126,13 +95,8 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @notice Maps owner addresses to their token balance
     mapping(address => uint256) public balances;
 
-    /// @notice Maps token IDs to their current owner
     mapping(uint256 => address) private idToOwner;
-
-    /// @notice Maps owners to their approved operators
     mapping(address => mapping(address => bool)) public delegatedOperators;
-
-    /// @notice Maps token IDs to their approved address
     mapping(uint256 => address) private approvedAddress;
 
     // =========================================================================
@@ -193,7 +157,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     // =========================================================================
     /// @notice Handles direct ETH transfers to mint tokens
     /// @dev Calculates how many tokens can be minted with the sent ETH
-    /// and refunds any excess
+    /// and refunds any excess (using pull pattern)
     receive() external payable {
         uint256 tokens = msg.value / FEE;
         uint256 remainingWei = msg.value % FEE;
@@ -248,7 +212,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
 
     /// @notice Reveals the token URI if it matches the stored hash
     /// @param value The baseURI to set
-    /// @dev Only the contract owner can call this function
+    /// @dev Only the contract owner can call this function after revealTime
     function revealTokenURI(string memory value) external onlyOwner {
         if (block.timestamp < revealTime) {
             revert NotRevealed();
@@ -265,6 +229,9 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @param newOwner The address of the new pending owner
     /// @dev Only the current owner can call this function
     function setPendingOwner(address newOwner) external onlyOwner {
+        if (newOwner == address(0)) {
+            revert ZeroAddress();
+        }
         pendingOwner = newOwner;
     }
 
@@ -308,18 +275,18 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @param from Address sending the NFT
     /// @param to Address receiving the NFT
     /// @param tokenId ID of the NFT being transferred
-    function transferFrom(address from, address to, uint256 tokenId) external payable zeroAddressCheck(to) {
+    function transferFrom(address from, address to, uint256 tokenId) public payable zeroAddressCheck(to) {
         address currentNFTOwner = idToOwner[tokenId];
         if (idToOwner[tokenId] == address(0)) {
             revert InvalidToken(tokenId);
         }
-        if (from != currentNFTOwner) {
-            revert NotAuthorized(from);
-        }
-
-        bool isAllowedOperator = msg.sender == currentNFTOwner || msg.sender == approvedAddress[tokenId]
-            || delegatedOperators[currentNFTOwner][msg.sender];
-        if (!isAllowedOperator) {
+        if (from != currentNFTOwner) revert NotAuthorized(from);
+        if (
+            (
+                msg.sender != currentNFTOwner && msg.sender != approvedAddress[tokenId]
+                    && !delegatedOperators[currentNFTOwner][msg.sender]
+            )
+        ) {
             revert NotAuthorized(msg.sender);
         }
 
@@ -355,27 +322,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
         payable
         override
     {
-        address owner = idToOwner[_tokenId];
-        if (owner == address(0)) {
-            revert InvalidToken(_tokenId);
-        }
-        if (_to == address(0)) {
-            revert ZeroAddress();
-        }
-        if (
-            _from != owner
-                || (
-                    msg.sender != owner && msg.sender != approvedAddress[_tokenId] && !delegatedOperators[owner][msg.sender]
-                )
-        ) {
-            revert NotAuthorized(_from);
-        }
-
-        balances[owner]--;
-        balances[_to]++;
-        idToOwner[_tokenId] = _to;
-        delete approvedAddress[_tokenId];
-        emit Transfer(_from, _to, _tokenId);
+        transferFrom(_from, _to, _tokenId);
 
         if (isContract(_to)) {
             (bool success, bytes memory returnData) = _to.call(
@@ -451,7 +398,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
         tokenExists(_tokenId)
         returns (string memory)
     {
-        return string(abi.encodePacked(_baseURI, _tokenId.toString()));
+        return string(string.concat(_baseURI, _tokenId.toString(), ".json"));
     }
 
     /// @notice Checks if the contract supports a specific interface
