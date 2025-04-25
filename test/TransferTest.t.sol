@@ -24,10 +24,8 @@ contract TransferTest is NFTBaseTest {
     function test_transferFrom_approvedAddressCanTransfer() public {
         _mintOneToken();
 
-        // Approve otherAccount to transfer token 0
         nft.approve(otherAccount, 0);
 
-        // otherAccount transfers token to thirdParty
         vm.prank(otherAccount);
         nft.transferFrom(owner, thirdParty, 0);
 
@@ -37,10 +35,8 @@ contract TransferTest is NFTBaseTest {
     function test_transferFrom_operatorCanTransfer() public {
         _mintOneToken();
 
-        // Approve otherAccount as operator for all owner's tokens
         nft.setApprovalForAll(otherAccount, true);
 
-        // otherAccount transfers token to thirdParty
         vm.prank(otherAccount);
         nft.transferFrom(owner, thirdParty, 0);
 
@@ -109,7 +105,6 @@ contract TransferTest is NFTBaseTest {
     function test_safeTransferFrom_revertWhenNonERC721Receiver() public {
         _mintOneToken();
 
-        // Deploy a minimal contract that doesn't implement onERC721Received
         NonERC721ReceiverMock nonReceiver = new NonERC721ReceiverMock();
 
         vm.expectRevert(abi.encodeWithSelector(NFT.NotOnReceivedImplementer.selector));
@@ -122,16 +117,13 @@ contract TransferTest is NFTBaseTest {
     function test_transferFrom_multipleTransfers() public {
         _mintOneToken();
 
-        // First transfer: owner -> otherAccount
         nft.transferFrom(owner, otherAccount, 0);
         assertEq(nft.ownerOf(0), otherAccount);
 
-        // Second transfer: otherAccount -> thirdParty
         vm.prank(otherAccount);
         nft.transferFrom(otherAccount, thirdParty, 0);
         assertEq(nft.ownerOf(0), thirdParty);
 
-        // Third transfer: thirdParty -> owner
         vm.prank(thirdParty);
         nft.transferFrom(thirdParty, owner, 0);
         assertEq(nft.ownerOf(0), owner);
@@ -140,14 +132,11 @@ contract TransferTest is NFTBaseTest {
     function test_transferFrom_clearsApprovalAfterTransfer() public {
         _mintOneToken();
 
-        // Approve otherAccount for token 0
         nft.approve(otherAccount, 0);
         assertEq(nft.getApproved(0), otherAccount);
 
-        // Transfer token to thirdParty
         nft.transferFrom(owner, thirdParty, 0);
 
-        // Check approval is cleared
         assertEq(nft.getApproved(0), address(0));
     }
 
@@ -155,36 +144,27 @@ contract TransferTest is NFTBaseTest {
     // Multiple Actors
     // =========================================================================
     function test_transferFrom_complexScenario() public {
-        // Mint 3 tokens
         _mintTokens(3);
 
-        // Approve otherAccount for token 0
         nft.approve(otherAccount, 0);
 
-        // Approve thirdParty for token 1
         nft.approve(thirdParty, 1);
 
-        // Set otherAccount as operator for all tokens
         nft.setApprovalForAll(otherAccount, true);
 
-        // otherAccount transfers token 0 to thirdParty
         vm.prank(otherAccount);
         nft.transferFrom(owner, thirdParty, 0);
 
-        // thirdParty transfers token 1 to otherAccount
         vm.prank(thirdParty);
         nft.transferFrom(owner, otherAccount, 1);
 
-        // otherAccount transfers token 2 to thirdParty
         vm.prank(otherAccount);
         nft.transferFrom(owner, thirdParty, 2);
 
-        // Check final ownership
         assertEq(nft.ownerOf(0), thirdParty);
         assertEq(nft.ownerOf(1), otherAccount);
         assertEq(nft.ownerOf(2), thirdParty);
 
-        // Check final balances
         assertEq(nft.balanceOf(owner), 0);
         assertEq(nft.balanceOf(otherAccount), 1);
         assertEq(nft.balanceOf(thirdParty), 2);
@@ -194,7 +174,6 @@ contract TransferTest is NFTBaseTest {
     // Fuzz Testing
     // =========================================================================
     function test_fuzz_transferFrom(address recipient) public {
-        // Filter out invalid addresses
         vm.assume(recipient != address(0));
         vm.assume(recipient != owner);
         vm.assume(recipient.code.length == 0); // Ensure it's an EOA
@@ -211,5 +190,4 @@ contract TransferTest is NFTBaseTest {
 
 /// @notice Mock contract that doesn't implement onERC721Received
 contract NonERC721ReceiverMock {
-// Intentionally empty
 }

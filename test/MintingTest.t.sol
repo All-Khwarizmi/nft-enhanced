@@ -33,7 +33,6 @@ contract MintingTest is NFTBaseTest {
     }
 
     function test_receiveFunction_mintTokensWithExactAmount() public {
-        // Send ETH to the contract using a low-level call to trigger the receive function
         (bool success,) = address(nft).call{value: FEE}("");
 
         assertTrue(success);
@@ -42,7 +41,6 @@ contract MintingTest is NFTBaseTest {
     }
 
     function test_receiveFunction_mintTokensWithExcessAmount() public {
-        // Send ETH to the contract with an excess amount
         uint256 excessAmount = 0.005 ether;
         (bool success,) = address(nft).call{value: FEE + excessAmount}("");
 
@@ -73,20 +71,17 @@ contract MintingTest is NFTBaseTest {
     }
 
     function test_buyTokens_revertWhenExceedingMaxSupply() public {
-        // First, set totalSupply to MAX_SUPPLY by minting
         vm.assume(nft.MAX_SUPPLY() > 0);
 
-        // Try to mint ONE token beyond MAX_SUPPLY
         uint256 initialSupply = nft.totalSupply();
         uint256 amountToMint = nft.MAX_SUPPLY() - initialSupply;
 
-        // Mint up to MAX_SUPPLY
         if (amountToMint > 0) {
             nft.buyTokens{value: FEE * amountToMint}(amountToMint);
         }
 
         // Try to mint one more - should revert
-        vm.expectRevert("Max supply reached");
+        vm.expectRevert(abi.encodeWithSelector(NFT.NotEnoughSupply.selector));
         nft.buyTokens{value: FEE}(1);
     }
 
@@ -94,26 +89,20 @@ contract MintingTest is NFTBaseTest {
     // Multiple Actors
     // =========================================================================
     function test_buyTokens_multipleUsersMint() public {
-        // First user mints
         _mintOneToken();
 
-        // Second user mints
         vm.prank(otherAccount);
         nft.buyTokens{value: FEE}(1);
 
-        // Third user mints
         vm.prank(thirdParty);
         nft.buyTokens{value: FEE}(1);
 
-        // Verify total supply
         assertEq(nft.totalSupply(), 3);
 
-        // Verify individual balances
         assertEq(nft.balanceOf(owner), 1);
         assertEq(nft.balanceOf(otherAccount), 1);
         assertEq(nft.balanceOf(thirdParty), 1);
 
-        // Verify ownership
         assertEq(nft.ownerOf(0), owner);
         assertEq(nft.ownerOf(1), otherAccount);
         assertEq(nft.ownerOf(2), thirdParty);
@@ -123,8 +112,9 @@ contract MintingTest is NFTBaseTest {
     // Fuzz Testing
     // =========================================================================
     function test_fuzz_buyTokens(uint256 amount) public {
-        // Bound amount to reasonable limits to avoid gas limitations and overflow
         amount = bound(amount, 1, 10);
+        uint256 supplyLeft = nft.getSupplyLeft();
+        vm.assume(supplyLeft >= amount);
 
         nft.buyTokens{value: FEE * amount}(amount);
 

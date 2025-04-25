@@ -233,7 +233,6 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
         if (keccak256(bytes(value)) != _baseURIHash) {
             revert NotExpectedValue();
         }
-
         _baseURI = value;
         emit Reveal(value);
     }
@@ -261,7 +260,12 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @param approved Address to be approved
     /// @param tokenId ID of NFT to approve for
     /// @dev Only the owner or an approved operator can call this function
-    function approve(address approved, uint256 tokenId) external payable zeroAddressCheck(approved) tokenExists(tokenId) {
+    function approve(address approved, uint256 tokenId)
+        external
+        payable
+        zeroAddressCheck(approved)
+        tokenExists(tokenId)
+    {
         address nftOwner = idToOwner[tokenId];
         bool isOwner = nftOwner == msg.sender;
         bool isAllowedOperator = delegatedOperators[nftOwner][msg.sender];
@@ -453,7 +457,25 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @param account The address that owns the NFTs
     /// @param operator The address to check for approval
     /// @return True if the operator is approved, false otherwise
-    function isApprovedForAll(address account, address operator) external view zeroAddressCheck(account) zeroAddressCheck(operator) returns (bool) {
+    function isApprovedForAll(address account, address operator)
+        external
+        view
+        zeroAddressCheck(account)
+        zeroAddressCheck(operator)
+        returns (bool)
+    {
         return delegatedOperators[account][operator];
+    }
+
+    function getSupplyLeft() external view returns (uint256) {
+        return MAX_SUPPLY - totalSupply;
+    }
+
+    function getEndGracePeriod() external view returns (uint256) {
+        return endGracePeriod;
+    }
+
+    function getPendingOwner() external view returns (address) {
+        return pendingOwner;
     }
 }

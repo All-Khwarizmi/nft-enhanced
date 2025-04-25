@@ -26,7 +26,6 @@ contract TokenTest is NFTBaseTest {
     function test_tokenURI_returnsCorrectURI() public {
         _mintOneToken();
 
-        // Reveal collection
         string memory baseUriValue = "ipfs://example/";
         vm.warp(1 days);
         nft.revealTokenURI(baseUriValue);
@@ -77,16 +76,13 @@ contract TokenTest is NFTBaseTest {
     function test_tokenURIAndReveal_sequence() public {
         _mintOneToken();
 
-        // Try to get URI before reveal (should revert)
         vm.expectRevert(abi.encodeWithSelector(NFT.NotRevealed.selector));
         nft.tokenURI(0);
 
-        // Reveal collection
         string memory baseUriValue = "ipfs://example/";
         vm.warp(1 days);
         nft.revealTokenURI(baseUriValue);
 
-        // Now we should be able to get the URI
         string memory expectedURI = string(string.concat(baseUriValue, "0.json"));
         assertEq(nft.tokenURI(0), expectedURI);
     }
@@ -95,7 +91,6 @@ contract TokenTest is NFTBaseTest {
     // Fuzz Testing
     // =========================================================================
     function test_fuzz_balanceOf(uint256 amountToMint) public {
-        // Bound amount to reasonable limits
         amountToMint = bound(amountToMint, 1, 5);
 
         _mintTokens(amountToMint);

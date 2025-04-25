@@ -14,20 +14,17 @@ contract OwnershipTest is NFTBaseTest {
         vm.prank(nft.owner());
         nft.setPendingOwner(otherAccount);
 
-        // We can't directly check pendingOwner as it's private,
-        // but we can verify behavior in the acceptance test
+        address pendingOwner = nft.getPendingOwner();
+        assertEq(pendingOwner, otherAccount);
     }
 
     function test_acceptOwnership_pendingOwnerCanAccept() public {
-        // Set pending owner
         vm.prank(nft.owner());
         nft.setPendingOwner(otherAccount);
 
-        // Accept ownership
         vm.prank(otherAccount);
         nft.acceptOwnership();
 
-        // Verify new owner
         assertEq(nft.owner(), otherAccount);
     }
 
@@ -45,11 +42,9 @@ contract OwnershipTest is NFTBaseTest {
     }
 
     function test_acceptOwnership_revertWhenCallerNotPendingOwner() public {
-        // Set pending owner
         vm.prank(nft.owner());
         nft.setPendingOwner(otherAccount);
 
-        // Try to accept ownership from wrong account
         vm.prank(thirdParty);
         vm.expectRevert(abi.encodeWithSelector(NFT.NotAuthorized.selector, thirdParty));
         nft.acceptOwnership();
@@ -59,34 +54,26 @@ contract OwnershipTest is NFTBaseTest {
     // Multiple Actions
     // =========================================================================
     function test_ownershipTransfer_fullSequence() public {
-        // Initial owner
         assertEq(nft.owner(), owner);
 
-        // Set pending owner
         vm.prank(nft.owner());
         nft.setPendingOwner(otherAccount);
 
-        // Accept ownership
         vm.prank(otherAccount);
         nft.acceptOwnership();
 
-        // Verify new owner
         assertEq(nft.owner(), otherAccount);
 
-        // New owner sets another pending owner
         vm.prank(otherAccount);
         nft.setPendingOwner(thirdParty);
 
-        // Accept ownership again
         vm.prank(thirdParty);
         nft.acceptOwnership();
 
-        // Verify final owner
         assertEq(nft.owner(), thirdParty);
     }
 
     function test_ownershipTransfer_changePendingOwnerBeforeAcceptance() public {
-        // Set pending owner
         vm.prank(nft.owner());
         nft.setPendingOwner(otherAccount);
 
@@ -103,7 +90,6 @@ contract OwnershipTest is NFTBaseTest {
         vm.prank(thirdParty);
         nft.acceptOwnership();
 
-        // Verify new owner
         assertEq(nft.owner(), thirdParty);
     }
 
@@ -113,51 +99,42 @@ contract OwnershipTest is NFTBaseTest {
     function test_onlyOwnerFunctions_revealTokenURI() public {
         string memory baseUriValue = "ipfs://example/";
 
-        // Set time to 0 to ensure we're before revealTime
         vm.warp(0);
 
-        // Try to reveal from non-owner
         vm.prank(otherAccount);
         vm.expectRevert(abi.encodeWithSelector(NFT.NotAuthorized.selector, otherAccount));
         vm.warp(1 days);
 
         nft.revealTokenURI(baseUriValue);
 
-        // Reveal from owner
         vm.prank(nft.owner());
         nft.revealTokenURI(baseUriValue);
 
-        // Verify URI was set
         assertEq(nft.baseURI(), baseUriValue);
     }
 
     function test_onlyOwnerFunctions_initiateWithdrawalPeriod() public {
-        // Try to initiate from non-owner
         vm.prank(otherAccount);
         vm.expectRevert(abi.encodeWithSelector(NFT.NotAuthorized.selector, otherAccount));
         nft.initiateWithdrawalPeriod();
 
-        // Initiate from owner
         vm.prank(nft.owner());
         nft.initiateWithdrawalPeriod();
 
-        // We can't directly check the endGracePeriod as it's private,
-        // but we can verify behavior in the withdrawCollectedEth test
+        uint256 endGracePeriod = nft.getEndGracePeriod();
+        assertTrue(endGracePeriod > 0); 
     }
 
     // =========================================================================
     // Ownership Change Effects
     // =========================================================================
     function test_ownershipChange_privilegesTransferred() public {
-        // Set pending owner
         vm.prank(nft.owner());
         nft.setPendingOwner(otherAccount);
 
-        // Accept ownership
         vm.prank(otherAccount);
         nft.acceptOwnership();
 
-        // New owner should be able to call owner-only functions
         string memory baseUriValue = "ipfs://example/";
         vm.warp(1 days);
 

@@ -25,20 +25,16 @@ contract NFTBaseTest is Test {
         otherAccount = makeAddr("otherAccount");
         thirdParty = makeAddr("thirdParty");
 
-        // Deploy NFT contract with test parameters
         nft = new NFT("TestNFT", "TNFT", 1 days, EXAMPLE_URI_HASH, 5);
 
-        // Fund test accounts
         vm.deal(otherAccount, 10 ether);
         vm.deal(thirdParty, 10 ether);
     }
 
-    // Helper function to mint one token
     function _mintOneToken() internal {
         nft.buyTokens{value: FEE}(1);
     }
 
-    // Helper function to mint multiple tokens
     function _mintTokens(uint256 amount) internal {
         nft.buyTokens{value: FEE * amount}(amount);
     }
