@@ -36,17 +36,24 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     error InvalidToken(uint256 tokenId);
     error ZeroAddress();
     error NotAuthorized(address account);
-    error NotEnoughSupply();
     error NotExpectedValue();
+    error NotEnoughSupply();
     error NotOnReceivedImplementer();
     error NotRevealed();
     error NotEnoughEth();
     error GracePeriodNotOver();
+    error TransferFailed();
 
     // =========================================================================
     // Events
     // =========================================================================
     event Mint(address indexed owner, uint256 tokenId);
+    event Reveal(string baseURI);
+    event Withdraw(uint256 amount);
+    event InitiateWithdrawalPeriod();
+    event WithdrawCollectedEth();
+    event SetPendingOwner(address pendingOwner);
+    event AcceptOwnership();
 
     // =========================================================================
     // Constants
@@ -74,7 +81,6 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @notice Time after which the collection will be revealed
     uint256 private revealTime;
 
-    // Supply tracking
     uint256 public totalSupply;
 
     // Contract ownership
@@ -173,6 +179,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     // =========================================================================
     /// @notice Allows users to buy a specific amount of tokens
     /// @param amount The number of tokens to purchase
+    /// @dev Reverts if the amount is not exactly equal to FEE (per token)
     function buyTokens(uint256 amount) external payable {
         if (msg.value != FEE * amount) {
             revert NotExpectedValue();
@@ -188,6 +195,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
             revert NotEnoughEth();
         }
         ethBalances[msg.sender] -= amount;
+        emit Withdraw(amount);
         payable(msg.sender).transfer(amount);
     }
 
@@ -195,6 +203,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @dev Only the contract owner can call this function
     function initiateWithdrawalPeriod() external onlyOwner {
         endGracePeriod = block.timestamp + GRACE_PERIOD;
+        emit InitiateWithdrawalPeriod();
     }
 
     /// @notice Allows withdrawal of collected ETH after grace period
@@ -206,8 +215,12 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
         uint256 amountToWithdraw = weiCollected;
         weiCollected = 0;
         endGracePeriod = 0;
+        emit WithdrawCollectedEth();
+
         (bool success,) = payable(_owner).call{value: amountToWithdraw}("");
-        require(success, "Transfer failed");
+        if (!success) {
+            revert TransferFailed();
+        }
     }
 
     /// @notice Reveals the token URI if it matches the stored hash
@@ -217,22 +230,20 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
         if (block.timestamp < revealTime) {
             revert NotRevealed();
         }
-
         if (keccak256(bytes(value)) != _baseURIHash) {
             revert NotExpectedValue();
         }
 
         _baseURI = value;
+        emit Reveal(value);
     }
 
     /// @notice Sets a pending owner for ownership transfer
     /// @param newOwner The address of the new pending owner
     /// @dev Only the current owner can call this function
-    function setPendingOwner(address newOwner) external onlyOwner {
-        if (newOwner == address(0)) {
-            revert ZeroAddress();
-        }
+    function setPendingOwner(address newOwner) external onlyOwner zeroAddressCheck(newOwner) {
         pendingOwner = newOwner;
+        emit SetPendingOwner(newOwner);
     }
 
     /// @notice Completes the ownership transfer process
@@ -243,13 +254,14 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
         }
         _owner = pendingOwner;
         pendingOwner = address(0);
+        emit AcceptOwnership();
     }
 
     /// @notice Approves an address to transfer a specific NFT
     /// @param approved Address to be approved
     /// @param tokenId ID of NFT to approve for
     /// @dev Only the owner or an approved operator can call this function
-    function approve(address approved, uint256 tokenId) external payable {
+    function approve(address approved, uint256 tokenId) external payable zeroAddressCheck(approved) tokenExists(tokenId) {
         address nftOwner = idToOwner[tokenId];
         bool isOwner = nftOwner == msg.sender;
         bool isAllowedOperator = delegatedOperators[nftOwner][msg.sender];
@@ -289,7 +301,6 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
         ) {
             revert NotAuthorized(msg.sender);
         }
-
         unchecked {
             balances[from]--;
         }
@@ -343,14 +354,17 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @param amount Number of tokens to mint
     /// @dev Reverts if minting would exceed maximum supply
     function _mint(address to, uint256 amount) internal {
-        require(totalSupply < MAX_SUPPLY, "Max supply reached");
-
+        if (totalSupply >= MAX_SUPPLY || totalSupply + amount > MAX_SUPPLY) {
+            revert NotEnoughSupply();
+        }
+        uint256 finalTotalSupply = totalSupply + amount;
         balances[to] += amount;
-        for (uint256 i = 0; i < amount; i++) {
-            uint256 tokenId = totalSupply++;
+        for (uint256 i = totalSupply; i < finalTotalSupply; i++) {
+            uint256 tokenId = i;
             idToOwner[tokenId] = to;
             emit Transfer(address(0), to, tokenId);
         }
+        totalSupply = finalTotalSupply;
     }
 
     /// @notice Checks if an address is a contract
@@ -417,10 +431,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @notice Gets the owner of a specific NFT
     /// @param tokenId The ID of the token
     /// @return The address of the token owner
-    function ownerOf(uint256 tokenId) external view returns (address) {
-        if (idToOwner[tokenId] == address(0)) {
-            revert InvalidToken(tokenId);
-        }
+    function ownerOf(uint256 tokenId) external view tokenExists(tokenId) returns (address) {
         return idToOwner[tokenId];
     }
 
@@ -434,7 +445,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @notice Gets the approved address for a specific NFT
     /// @param tokenId The ID of the token
     /// @return The address approved for the token
-    function getApproved(uint256 tokenId) external view returns (address) {
+    function getApproved(uint256 tokenId) external view tokenExists(tokenId) returns (address) {
         return approvedAddress[tokenId];
     }
 
@@ -442,7 +453,7 @@ contract NFT is IERC721, IERC721Metadata, IERC165 {
     /// @param account The address that owns the NFTs
     /// @param operator The address to check for approval
     /// @return True if the operator is approved, false otherwise
-    function isApprovedForAll(address account, address operator) external view returns (bool) {
+    function isApprovedForAll(address account, address operator) external view zeroAddressCheck(account) zeroAddressCheck(operator) returns (bool) {
         return delegatedOperators[account][operator];
     }
 }
