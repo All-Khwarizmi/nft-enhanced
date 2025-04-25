@@ -109,7 +109,7 @@ Minter un NFT :
 ```bash
 chmod +x script/mint.sh
 make mint
-make mint NFT_ADDRESS=0x0165878A594ca255338adfa4d48449f69242Eb8F RPC_URL=http://localhost:8545 PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+make mint NFT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3 RPC_URL=http://localhost:8545 PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 ```
 
 Minter plusieurs NFTs :
